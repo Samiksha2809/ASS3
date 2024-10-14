@@ -228,47 +228,13 @@ int main(int argc, char* argv[]) {
             cout << "Please create account / login\n";
             continue;
         }
-    if (inpt[0] == "upload_file") {
-    if (inpt.size() < 3) {
-        cout << "Invalid arguments for upload_file. Provide <filepath> and <group>.\n";
-        continue;
-    }
-    
-    // Step 1: Send the 'upload_file' command to the tracker
-    if (send(sock, inptline.c_str(), inptline.size(), MSG_NOSIGNAL) == -1) {
-        cout << "Error sending upload_file command: " << strerror(errno) << endl;
-        continue;  // Skip processing if sending failed
-    }
-    cout << "Sent upload_file command to tracker: " << inptline << endl;
-
-    // Step 2: Call the uploadFile function to send the file details
-    if (uploadFile(inpt, sock) != 0) {
-        cout << "Error uploading file.\n";
-        continue;  // Skip further processing if file upload failed
-    }
-    char buffer[1024] = {0};
-     int bytesRead = read(sock, buffer, sizeof(buffer) - 1);
-     if (bytesRead > 0) {
-        buffer[bytesRead] = '\0'; // Null-terminate the string
-        cout << "Tracker response: " << buffer << endl;
-    
-    // After handling upload_file, continue with the next input
-    continue;  // Skip sending this command again, proceed to next input
-}
-    }
-
-
 
         // Send command to tracker
-    if (send(sock, inptline.c_str(), inptline.size(), MSG_NOSIGNAL) == -1) {
+        if (send(sock, inptline.c_str(), inptline.size(), MSG_NOSIGNAL) == -1) {
             cout << "Error sending command: " << strerror(errno) << endl;
             continue;
         }
-    cout << "Sent to tracker: " << inptline << endl;
-       
-
-
-        
+        cout << "Sent to tracker: " << inptline << endl;
 
     char buffer[1024] = {0};
      int bytesRead = read(sock, buffer, sizeof(buffer) - 1);
