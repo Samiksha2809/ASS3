@@ -17,9 +17,9 @@
 
 using namespace std;
 
-vector<string> loadTrackerInfo(const string &filename) {
+vector<string> loadTrackerInfo(const string &file_Name) {
     vector<string> res;
-    ifstream file(filename);
+    ifstream file(file_Name);
     string line;
     while (getline(file, line)) {
         cout << "Tracker info: " << line << endl;
@@ -38,31 +38,31 @@ void* check_input(void* arg) {
     }
 }
 
-struct clientdet {
+struct client_details {
     int port;
-    int clientSock;
+    int client_socket;
     string password;
     string username;
 };
 
 struct group_details {
     string admin;
-    map<string, clientdet> members;
-    map<string, vector<clientdet>> filetoports;
+    map<string, client_details> members;
+    map<string, vector<client_details>> filetoports;
 };
 
-string logFileName, tracker1_ip, tracker2_ip, curTrackerIP, seederFileName;
+string log_file_Name, tracker1Ip, tracker2Ip, currentTrackerIP, seederfile_Name;
 int tracker1Port, tracker2Port, curTrackerPort;
 unordered_map<string, string> users;
 unordered_map<string, bool> isLoggedIn;
-unordered_map<string, unordered_map<string, set<string>>> seederList; // groupid -> {map of filenames -> peer address}
+unordered_map<string, unordered_map<string, set<string>>> grpfileseeder; // grpfilesseder = groupid -> {map of file_Names -> peer address}
 unordered_map<string, string> fileSize;
-unordered_map<string, string> grpAdmins;
+unordered_map<string, string> group_admins;
 vector<string> allGroups;
-unordered_map<string, set<string>> groupMembers;
-unordered_map<string, set<string>> grpPendngRequests;
+unordered_map<string, set<string>> group_Members;
+unordered_map<string, set<string>> group_pendingRequests;
 unordered_map<string, string> unameToPort;
-unordered_map<string, string> piecewiseHash;
+unordered_map<string, string> hash_Piecewise;
 
 
 vector<string> splitString(const string &s, const string &delimiter) {
@@ -77,69 +77,73 @@ vector<string> splitString(const string &s, const string &delimiter) {
 }
 
 bool pathExists(const string& path) {
-    struct stat buffer;
-    return (stat(path.c_str(), &buffer) == 0); // Check if the file exists
+    struct stat store;
+    return (stat(path.c_str(), &store) == 0); // Check if the file exists
 }
 
 
-void uploadFile(vector<string> inpt, int client_socket, string client_uid) {
+void uploadFile( int client_socket, string client_userid,vector<string> inpt) {
     // inpt - upload_file <file_path> <group_id>
     if (inpt.size() != 3) {
-        write(client_socket, "Invalid argument count", 22);
-        return; // Ensure to exit after sending a response
+        string response = "Argumnet count invalid";
+        write(client_socket, response.c_str(), response.size());
+        return; 
     }
     
     string groupId = inpt[2];
-    if (groupMembers.find(groupId) == groupMembers.end()) {
-        write(client_socket, "Error 101: Group does not exist", 32);
+    if (group_Members.find(groupId) == group_Members.end()) {
+        string response = "Sorry, Group doesn't exist";
+        write(client_socket, response.c_str(), response.size());
         return;
     }
     
-    if (groupMembers[groupId].find(client_uid) == groupMembers[groupId].end()) {
-        write(client_socket, "Error 102: User not a member of the group", 41);
+    if (group_Members[groupId].find(client_userid) == group_Members[groupId].end()) {
+        string response = "User not a member of the group";
+        write(client_socket, response.c_str(), response.size());
         return;
     }
     
-    // Check if the file path exists
+    
     if (!pathExists(inpt[1])) {
-        write(client_socket, "Error 103: File path does not exist", 36);
+        string response = "File path doesn't exist";
+        write(client_socket, response.c_str(), response.size());
         return;
     }
     
-    char fileDetails[524288] = {0}; // Buffer to receive file details
-    write(client_socket, "Uploading...", 12);
+    char fileDetails[524288] = {0}; 
+    write(client_socket, "Uploading file", 15);
     cout<<"uploading"<< endl;
 
-    // Read the file data from the client
+  
     if (read(client_socket, fileDetails, sizeof(fileDetails)) > 0) {
         cout << "reading" << endl;
-        if (string(fileDetails) == "error") return; // Handle error response
+        if (string(fileDetails) == "error") return; 
         cout << fileDetails <<endl;
-        vector<string> fdet = splitString(string(fileDetails), "$$");
-        // fdet = [filepath, peer address, file size, file hash, piecewise hash] 
-        string filename = splitString(string(fdet[0]), "/").back(); // Extract the filename
-        cout << filename;
+        vector<string> filedet = splitString(string(fileDetails), "$$");
+        // filedet = [filepath, peer address, file size, file hash, piecewise hash] 
+        string file_Name = splitString(string(filedet[0]), "/").back(); // Extract the file_Name
+        cout << file_Name;
         // Construct piecewise hash from the received details
         string hashOfPieces = "";
-        for (size_t i = 4; i < fdet.size(); i++) {
-            hashOfPieces += fdet[i];
-            if (i != fdet.size() - 1) hashOfPieces += "$$";
+        for (int i = 4; i < filedet.size(); i++) {
+            hashOfPieces += filedet[i];
+            if (i != filedet.size() - 1) hashOfPieces += "$$";
         }
         cout<<"hello";
         
         // Store the piecewise hash and update the seeder list
-        piecewiseHash[filename] = hashOfPieces;
-        seederList[groupId][filename].insert(client_uid);
+        hash_Piecewise[file_Name] = hashOfPieces;
+        grpfileseeder[groupId][file_Name].insert(client_userid);
 
         // Update the file size map
-        fileSize[filename] = fdet[2]; // Assuming fdet[2] contains the file size
+        fileSize[file_Name] = filedet[2]; // Assuming filedet[2] contains the file size
 
          cout<<"hello";
         write(client_socket, "Uploaded", 8); // Notify client of success
         cout << "uploaded";
     } else {
-        
-        write(client_socket, "Error: Failed to read file data", 32);
+        string response = "Failed to read the file data";
+        write(client_socket, response.c_str(), response.size());
     }
 }
 
@@ -192,7 +196,7 @@ int LoginUser(vector<string> input, int client_socket) {
     return 0;
 }
 
-int createGroup(vector<string> inpt, int client_socket, string client_uid) {
+int createGroup(vector<string> inpt, int client_socket, string client_userid) {
     if (inpt.size() != 2) {
         string response = "Argument count is invalid";
         write(client_socket, response.c_str(), response.size());
@@ -201,13 +205,13 @@ int createGroup(vector<string> inpt, int client_socket, string client_uid) {
     for (auto i : allGroups) {
         if (i == inpt[1]) return -1;
     }
-    grpAdmins.insert({inpt[1], client_uid});
+    group_admins.insert({inpt[1], client_userid});
     allGroups.push_back(inpt[1]);
-    groupMembers[inpt[1]].insert(client_uid);
+    group_Members[inpt[1]].insert(client_userid);
     return 0;
 }
 
-void list_groups(vector<string> inpt, int client_socket) {
+void list_groups( int client_socket,vector<string> inpt) {
     if (inpt.size() != 1) {
         string response = "Argument count invalid";
         write(client_socket, response.c_str(), response.size());
@@ -226,67 +230,67 @@ void list_groups(vector<string> inpt, int client_socket) {
     write(client_socket, reply.c_str(), reply.size());
 }
 
-void join_group(vector<string> inpt, int client_socket, string client_uid) {
+void join_group(int client_socket, string client_userid,vector<string> inpt) {
     if (inpt.size() != 2) {
         string response = "Invalid argument count";
         write(client_socket, response.c_str(), response.size());
         return;
     }
 
-    if (grpAdmins.find(inpt[1]) == grpAdmins.end()) {
+    if (group_admins.find(inpt[1]) == group_admins.end()) {
         string response = "Invalid Group";
         write(client_socket, response.c_str(), response.size());
-    } else if (groupMembers[inpt[1]].find(client_uid) == groupMembers[inpt[1]].end()) {
-        grpPendngRequests[inpt[1]].insert(client_uid);
+    } else if (group_Members[inpt[1]].find(client_userid) == group_Members[inpt[1]].end()) {
+        group_pendingRequests[inpt[1]].insert(client_userid);
         string response = "Sent Group Request";
         write(client_socket, response.c_str(), response.size());
     } else {
-        string response = "You are already in this group";
+        string response = "You are already present in this group";
         write(client_socket, response.c_str(), response.size());
     }
 }
 
-void list_requests(vector<string> inpt, int client_socket, string client_uid) {
+void list_requests( int client_socket, string client_userid,vector<string> inpt) {
     if (inpt.size() != 2) {
         string response = "Argument count invalid";
         write(client_socket, response.c_str(), response.size());
         return;
     }
 
-    if (grpAdmins.find(inpt[1]) == grpAdmins.end() || grpAdmins[inpt[1]] != client_uid) {
+    if (group_admins.find(inpt[1]) == group_admins.end() || group_admins[inpt[1]] != client_userid) {
         string response = "Group invalid or not admin";
         write(client_socket, response.c_str(), response.size());
-    } else if (grpPendngRequests[inpt[1]].empty()) {
+    } else if (group_pendingRequests[inpt[1]].empty()) {
         string response = "No pending requests";
         write(client_socket, response.c_str(), response.size());
     } else {
         string reply = "Pending requests:\n";
-        for (const auto& request : grpPendngRequests[inpt[1]]) {
+        for (const auto& request : group_pendingRequests[inpt[1]]) {
             reply += request + "\n";
         }
         write(client_socket, reply.c_str(), reply.size());
     }
 }
 
-void accept_request(vector<string> inpt, int client_socket, string client_uid) {
+void accept_request(int client_socket, string client_userid,vector<string> inpt) {
     if (inpt.size() != 3) {
         write(client_socket, "Invalid argument count", 22);
         return;
     }
 
-    if (grpAdmins.find(inpt[1]) == grpAdmins.end()) {
+    if (group_admins.find(inpt[1]) == group_admins.end()) {
         string response = "Invalid group id";
         write(client_socket, response.c_str(), response.size());
-    } else if (grpAdmins[inpt[1]] == client_uid) {
-        grpPendngRequests[inpt[1]].erase(inpt[2]);
-        groupMembers[inpt[1]].insert(inpt[2]);
+    } else if (group_admins[inpt[1]] == client_userid) {
+        group_pendingRequests[inpt[1]].erase(inpt[2]);
+        group_Members[inpt[1]].insert(inpt[2]);
         write(client_socket, "Request accepted.", 18);
     } else {
         write(client_socket, "You are not the admin of this group", 35);
     }
 }
 
-void leave_group(vector<string> inpt, int client_socket, string client_uid) {
+void leave_group( int client_socket, string client_userid,vector<string> inpt) {
     if (inpt.size() != 2) {
         string response = "Argument count invalid";
         write(client_socket, response.c_str(), response.size());
@@ -295,22 +299,22 @@ void leave_group(vector<string> inpt, int client_socket, string client_uid) {
 
     string group_id = inpt[1];
 
-    if (grpAdmins.find(group_id) == grpAdmins.end()) {
+    if (group_admins.find(group_id) == group_admins.end()) {
         string response = "Group does not exist";
         write(client_socket, response.c_str(), response.size());
         return;
     }
 
-    if (groupMembers[group_id].find(client_uid) != groupMembers[group_id].end()) {
-        if (grpAdmins[group_id] == client_uid) {
-            if (groupMembers[group_id].size() > 1) {
-                string new_admin_uid = *groupMembers[group_id].begin();
-                grpAdmins[group_id] = new_admin_uid;
+    if (group_Members[group_id].find(client_userid) != group_Members[group_id].end()) {
+        if (group_admins[group_id] == client_userid) {
+            if (group_Members[group_id].size() > 1) {
+                string new_admin_uid = *group_Members[group_id].begin();
+                group_admins[group_id] = new_admin_uid;
                 write(client_socket, "You left the group. A new admin has been assigned.", 51);
             } else {
-                grpAdmins.erase(group_id);
-                groupMembers.erase(group_id);
-                grpPendngRequests.erase(group_id);
+                group_admins.erase(group_id);
+                group_Members.erase(group_id);
+                group_pendingRequests.erase(group_id);
                 auto it = find(allGroups.begin(), allGroups.end(), group_id);
                 if (it != allGroups.end()) {
                     allGroups.erase(it);
@@ -318,7 +322,7 @@ void leave_group(vector<string> inpt, int client_socket, string client_uid) {
                 write(client_socket, "You were the last member. Group deleted successfully.", 54);
             }
         } else {
-            groupMembers[group_id].erase(client_uid);
+            group_Members[group_id].erase(client_userid);
             write(client_socket, "Group left successfully", 23);
         }
     } else {
@@ -327,14 +331,14 @@ void leave_group(vector<string> inpt, int client_socket, string client_uid) {
 }
 
 void handle_client(int client_socket) {
-    string client_uid = "";
+    string client_userid = "";
     cout << ("pthread started for client socket number " + to_string(client_socket));
 
     while (true) {
         char inptline[1024] = {0};
 
         if (read(client_socket, inptline, 1024) <= 0) {
-            isLoggedIn[client_uid] = false;
+            isLoggedIn[client_userid] = false;
             close(client_socket);
             break;
         }
@@ -353,16 +357,17 @@ void handle_client(int client_socket) {
         } else if (inpt[0] == "login") {
             int r = LoginUser(inpt, client_socket);
             if (r > 0) {
-                write(client_socket, "You already have one active session", 35);
+                string response = "One login session is already active";
+                write(client_socket, response.c_str(), response.size());
             } else if (r < 0) {
                 write(client_socket, "Incorrect Username/password", 28);
             } else {
                 string response = "Login Successful";
                 write(client_socket, response.c_str(), response.size());
-                client_uid = inpt[1];
+                client_userid = inpt[1];
             }
         } else if (inpt[0] == "create_group") {
-            int r = createGroup(inpt, client_socket, client_uid);
+            int r = createGroup(inpt, client_socket, client_userid);
             if (r >= 0) {
                 string response = "Group Created";
                 write(client_socket, response.c_str(), response.size());
@@ -371,17 +376,17 @@ void handle_client(int client_socket) {
                 write(client_socket, response.c_str(), response.size());
             }
         } else if (inpt[0] == "list_groups") {
-            list_groups(inpt, client_socket);
+            list_groups(client_socket,inpt);
         } else if (inpt[0] == "join_group") {
-            join_group(inpt, client_socket, client_uid);
+            join_group(client_socket, client_userid,inpt);
         } else if (inpt[0] == "list_requests") {
-            list_requests(inpt, client_socket, client_uid);
+            list_requests( client_socket, client_userid,inpt);
         } else if (inpt[0] == "accept_request") {
-            accept_request(inpt, client_socket, client_uid);
+            accept_request(client_socket, client_userid,inpt);
         } else if (inpt[0] == "leave_group") {
-            leave_group(inpt, client_socket, client_uid);
+            leave_group(client_socket, client_userid,inpt);
         } else if (inpt[0] == "upload_file") {
-          uploadFile(inpt, client_socket, client_uid);
+          uploadFile(client_socket, client_userid,inpt);
         }
     }
 }
@@ -397,22 +402,22 @@ int main(int argc, char *argv[]) {
     vector<string> trackerAddress = loadTrackerInfo(tracker_info);
 
     if (tracker_no == 1) {
-        tracker1_ip = trackerAddress[0];
+        tracker1Ip = trackerAddress[0];
         tracker1Port = stoi(trackerAddress[1]);
-        curTrackerIP = tracker1_ip;
+        currentTrackerIP = tracker1Ip;
         curTrackerPort = tracker1Port;
     } else {
-        tracker2_ip = trackerAddress[2];
+        tracker2Ip = trackerAddress[2];
         tracker2Port = stoi(trackerAddress[3]);
-        curTrackerIP = tracker2_ip;
+        currentTrackerIP = tracker2Ip;
         curTrackerPort = tracker2Port;
     }
 
     int server_fd, client_socket;
-    vector<thread> threadVector;
+    vector<thread> vector_ofThreads;
     struct sockaddr_in address;
     pthread_t exitDetectionThreadId;
-    int addrlen = sizeof(address);
+    int addressLength = sizeof(address);
     
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd == 0) {
@@ -442,16 +447,16 @@ int main(int argc, char *argv[]) {
     }
 
     while (true) {
-        if ((client_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t *)&addrlen)) < 0) {
-            perror("Acceptance error");
-            cout << "Error in accept" << endl;
+        if ((client_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t *)&addressLength)) < 0) {
+            perror("Accepting error");
+            cout << "Error in accepting" << endl;
         }
         cout << "Connection Accepted" << endl;
 
-        threadVector.push_back(thread(handle_client, client_socket));
+        vector_ofThreads.push_back(thread(handle_client, client_socket));
     }
 
-    for (auto& thread : threadVector) {
+    for (auto& thread : vector_ofThreads) {
         if (thread.joinable()) {
             thread.join();
         }

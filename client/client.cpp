@@ -14,7 +14,7 @@ unordered_map<string, unordered_map<string, bool>> isuploaded;
 unordered_map<string, string> fileToFilePath; 
 string tracker1Ip, tracker2Ip;
 int tracker1Port, tracker2Port, peer_port, peer_ip;
-bool loggedIn;
+bool isloggedIn;
 
 
 
@@ -45,11 +45,11 @@ long long file_size(const char* path) {
 }
 
 // Function to compute the SHA1 hash of a chunk
-string computeChunkHash(const string& chunk) {
+string calculate_ChunkHash(const string& chunk) {
     unsigned char md[SHA_DIGEST_LENGTH];
     SHA1(reinterpret_cast<const unsigned char*>(chunk.data()), chunk.size(), md);
     
-    // Convert to hex string
+    
     string hash;
     for (int i = 0; i < SHA_DIGEST_LENGTH; i++) {
         char buf[3];
@@ -60,28 +60,28 @@ string computeChunkHash(const string& chunk) {
 }
 
 // Function to upload a file
-int uploadFile(vector<string> inpt, int sock) {
-    if (inpt.size() != 3) {
-        cout << "Invalid argument count" << endl;
+int uploadFile(vector<string> input, int sock) {
+    if (input.size() != 3) {
+        cout << "Argument count is invalid" << endl;
         return 0;
     }
 
-    const char* filepath = inpt[1].c_str();
+    const char* filepath = input[1].c_str();
     string filename = splitIntoParts(filepath, "/").back();
 
-    if (isuploaded[inpt[2]].find(filename) != isuploaded[inpt[2]].end()) {
-        cout << "File already uploaded" << endl;
+    if (isuploaded[input[2]].find(filename) != isuploaded[input[2]].end()) {
+        cout << "File has been already uploaded" << endl;
         send(sock, "error", 5, MSG_NOSIGNAL);
         return 0;
     } else {
-        isuploaded[inpt[2]][filename] = true;
+        isuploaded[input[2]][filename] = true;
         fileToFilePath[filename] = filepath;
     }
 
     // Prepare to read file in chunks
     FILE* file = fopen(filepath, "rb");
     if (!file) {
-        cout << "Error opening file" << endl;
+        cout << "Error in opening the file" << endl;
         return -1;
     }
 
@@ -92,7 +92,7 @@ int uploadFile(vector<string> inpt, int sock) {
         if (bytesRead == 0) break;
 
         string chunk(buffer, bytesRead);
-        string chunkHash = computeChunkHash(chunk);
+        string chunkHash = calculate_ChunkHash(chunk);
         piecewiseHash += chunkHash + "$$";
     }
     fclose(file);
@@ -104,7 +104,7 @@ int uploadFile(vector<string> inpt, int sock) {
     }
 
     // Get file size and full hash
-    string filehash = computeChunkHash(string(filepath)); // Use appropriate hashing for full file if needed
+    string filehash = calculate_ChunkHash(string(filepath)); // Use appropriate hashing for full file if needed
     string filesize = to_string(file_size(filepath));
 
     // Prepare file details
@@ -142,7 +142,7 @@ vector<string> loadTrackerInfo(const string &filename) {
 
 
 
-int connectToTracker(int trackerNum, struct sockaddr_in &serv_addr, int sock) {
+int make_connToTracker(int trackerNum, struct sockaddr_in &serv_addr, int sock) {
     char* curTrackIP;
     int curTrackPort;
     if(trackerNum == 1) {
@@ -200,71 +200,71 @@ int main(int argc, char* argv[]) {
     cout << "Peer socket created\n";
 
     // Connect to tracker
-    if (connectToTracker(1, serv_addr, sock) < 0) {
-        cout << "Failed to connect to tracker\n";
+    if (make_connToTracker(1, serv_addr, sock) < 0) {
+        cout << "Failed in connecting to tracker\n";
         return -1; 
     }
 
     while (true) { 
         cout << ">> ";
-        string inptline;
-        getline(cin, inptline);
+        string input_line;
+        getline(cin, input_line);
 
-        if (inptline.empty()) continue;
+        if (input_line.empty()) continue;
 
-        stringstream ss(inptline);
-        vector<string> inpt;
+        stringstream ss(input_line);
+        vector<string> input;
         string s;
         while (ss >> s) {
-            inpt.push_back(s);
+            input.push_back(s);
         }
 
         // Handle commands
-        if (inpt[0] == "login" && loggedIn) {
-            cout << "There is already one active session\n";
+        if (input[0] == "login" && isloggedIn) {
+            cout << "One login session is already there\n";
             continue;
         }
-        if (inpt[0] != "login" && inpt[0] != "create_user" && !loggedIn) {
+        if (input[0] != "login" && input[0] != "create_user" && !isloggedIn) {
             cout << "Please create account / login\n";
             continue;
         }
-    if (inpt[0] == "upload_file") {
-    if (inpt.size() < 3) {
+    if (input[0] == "upload_file") {
+    if (input.size() < 3) {
         cout << "Invalid arguments for upload_file. Provide <filepath> and <group>.\n";
         continue;
     }
     
-    // Step 1: Send the 'upload_file' command to the tracker
-    if (send(sock, inptline.c_str(), inptline.size(), MSG_NOSIGNAL) == -1) {
-        cout << "Error sending upload_file command: " << strerror(errno) << endl;
-        continue;  // Skip processing if sending failed
+    
+    if (send(sock, input_line.c_str(), input_line.size(), MSG_NOSIGNAL) == -1) {
+        cout << "Error sending the upload_file command: " << strerror(errno) << endl;
+        continue;  
     }
-    cout << "Sent upload_file command to tracker: " << inptline << endl;
+    cout << "Sent the upload_file command to tracker: " << input_line << endl;
 
-    // Step 2: Call the uploadFile function to send the file details
-    if (uploadFile(inpt, sock) != 0) {
+    
+    if (uploadFile(input, sock) != 0) {
         cout << "Error uploading file.\n";
-        continue;  // Skip further processing if file upload failed
+        continue;  
     }
     char buffer[1024] = {0};
      int bytesRead = read(sock, buffer, sizeof(buffer) - 1);
      if (bytesRead > 0) {
-        buffer[bytesRead] = '\0'; // Null-terminate the string
+        buffer[bytesRead] = '\0'; 
         cout << "Tracker response: " << buffer << endl;
     
-    // After handling upload_file, continue with the next input
-    continue;  // Skip sending this command again, proceed to next input
+   
+    continue; 
 }
     }
 
 
 
-        // Send command to tracker
-    if (send(sock, inptline.c_str(), inptline.size(), MSG_NOSIGNAL) == -1) {
+    // Send command to tracker
+    if (send(sock, input_line.c_str(), input_line.size(), MSG_NOSIGNAL) == -1) {
             cout << "Error sending command: " << strerror(errno) << endl;
             continue;
         }
-    cout << "Sent to tracker: " << inptline << endl;
+    cout << "Sent to tracker: " << input_line << endl;
        
 
 
@@ -273,19 +273,19 @@ int main(int argc, char* argv[]) {
     char buffer[1024] = {0};
      int bytesRead = read(sock, buffer, sizeof(buffer) - 1);
      if (bytesRead > 0) {
-        buffer[bytesRead] = '\0'; // Null-terminate the string
+        buffer[bytesRead] = '\0'; 
         cout << "Tracker response: " << buffer << endl;
         string response(buffer);
-        if(inpt[0] == "login"){
+        if(input[0] == "login"){
         if(response == "Login Successful"){
-            loggedIn = true;
+            isloggedIn = true;
            
         }
     }
     } else if (bytesRead < 0) {
         cout << "Error reading from tracker: " << strerror(errno) << endl;
     } else {
-        cout << "Tracker closed the connection." << endl;
+        cout << "Connection closed from trackers side" << endl;
     }
     
     }
