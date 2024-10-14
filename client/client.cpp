@@ -5,8 +5,19 @@
 #include <pthread.h>
 #include <fcntl.h>
 #include <openssl/sha.h>
-using namespace std;
-
+mutex logMutex;
+string log_filename;
+ using namespace std;
+void write_Log(const string &logFileName, const string &message) {
+    lock_guard<mutex> lock(logMutex);  // Lock the mutex to ensure safe access
+    ofstream fout(logFileName, ios::app);
+    if (!fout.is_open()) {
+        cerr << "Error: Unable to open log file: " << logFileName << endl;
+        return;
+    }
+    fout << message << endl;
+    fout.close();
+} 
 const int FILE_CHUNK_SIZE = 512 * 1024; // 512 KB
 
 string client_ip, client_port;
@@ -15,6 +26,35 @@ unordered_map<string, string> fileToFilePath;
 string tracker1Ip, tracker2Ip;
 int tracker1Port, tracker2Port, peer_port, peer_ip;
 bool isloggedIn;
+
+struct fileDetailsfrompeer{
+string fileName;
+string peerServerIP;
+long long file_size;
+}fileDetailsfrompeer;
+
+
+struct requiredChunkDetails{
+    string peerServerIP;
+    string fileName;
+    long long chunk_no;
+    string dest;
+}requiredChunkDetails;
+
+
+// int downloadFile(int sock, vector<string> input)
+// {
+//     if(input.size() != 4){
+//         return 0;
+//     }
+//     string file_Details = "";
+//     file_Details += input[2] + "$$";
+//     file_Details += input[3] + "$$";
+//     file_Details += input[1];
+//     write_Log(log_filename,"sending the file details for downloading : " + file_Details);
+    
+    
+// }
 
 
 
@@ -177,6 +217,7 @@ int main(int argc, char* argv[]) {
     // Load tracker info
     string client_info = argv[1];
     string tracker_info = argv[2];
+    log_filename = client_info + "_log.txt";
     vector<string> trackerAddress = loadTrackerInfo(tracker_info);
 
     vector<string> client_info_arr = splitIntoParts(client_info);

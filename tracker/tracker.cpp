@@ -17,6 +17,20 @@
 
 using namespace std;
 
+string log_file_Name = "logfile.txt";
+mutex logMutex;
+
+void write_Log(const string &message) {
+    lock_guard<mutex> lock(logMutex);  // Lock the mutex to ensure safe access
+    ofstream fout(log_file_Name, ios::app);
+    if (!fout.is_open()) {
+        cerr << "Error: Unable to open log file: " << log_file_Name << endl;
+        return;
+    }
+    fout << message << endl;
+    fout.close();
+}
+
 vector<string> loadTrackerInfo(const string &file_Name) {
     vector<string> res;
     ifstream file(file_Name);
@@ -51,7 +65,7 @@ struct group_details {
     map<string, vector<client_details>> filetoports;
 };
 
-string log_file_Name, tracker1Ip, tracker2Ip, currentTrackerIP, seederfile_Name;
+string tracker1Ip, tracker2Ip, currentTrackerIP, seederfile_Name;
 int tracker1Port, tracker2Port, curTrackerPort;
 unordered_map<string, string> users;
 unordered_map<string, bool> isLoggedIn;
@@ -113,23 +127,24 @@ void uploadFile( int client_socket, string client_userid,vector<string> inpt) {
     char fileDetails[524288] = {0}; 
     write(client_socket, "Uploading file", 15);
     cout<<"uploading"<< endl;
+    write_Log("uploading");
 
   
     if (read(client_socket, fileDetails, sizeof(fileDetails)) > 0) {
-        cout << "reading" << endl;
+        //cout << "reading" << endl;
         if (string(fileDetails) == "error") return; 
-        cout << fileDetails <<endl;
+        write_Log(fileDetails);
         vector<string> filedet = splitString(string(fileDetails), "$$");
         // filedet = [filepath, peer address, file size, file hash, piecewise hash] 
         string file_Name = splitString(string(filedet[0]), "/").back(); // Extract the file_Name
-        cout << file_Name;
+        write_Log(file_Name);
         // Construct piecewise hash from the received details
         string hashOfPieces = "";
         for (int i = 4; i < filedet.size(); i++) {
             hashOfPieces += filedet[i];
             if (i != filedet.size() - 1) hashOfPieces += "$$";
         }
-        cout<<"hello";
+        //cout<<"hello";
         
         // Store the piecewise hash and update the seeder list
         hash_Piecewise[file_Name] = hashOfPieces;
@@ -138,9 +153,10 @@ void uploadFile( int client_socket, string client_userid,vector<string> inpt) {
         // Update the file size map
         fileSize[file_Name] = filedet[2]; // Assuming filedet[2] contains the file size
 
-         cout<<"hello";
+        // cout<<"hello";
         write(client_socket, "Uploaded", 8); // Notify client of success
-        cout << "uploaded";
+        cout << "uploaded"<<endl;
+        write_Log("uploaded");
     } else {
         string response = "Failed to read the file data";
         write(client_socket, response.c_str(), response.size());
@@ -332,7 +348,8 @@ void leave_group( int client_socket, string client_userid,vector<string> inpt) {
 
 void handle_client(int client_socket) {
     string client_userid = "";
-    cout << ("pthread started for client socket number " + to_string(client_socket));
+    cout << ("pthread started for client socket number " + to_string(client_socket))<<endl;
+    write_Log("pthread started for client socket number " + to_string(client_socket));
 
     while (true) {
         char inptline[1024] = {0};
@@ -343,6 +360,7 @@ void handle_client(int client_socket) {
             break;
         }
         cout << ("client request: " + string(inptline)) << endl;
+        write_Log("client request: " + string(inptline));
 
         string s, in = string(inptline);
         stringstream ss(in);
@@ -393,7 +411,8 @@ void handle_client(int client_socket) {
 
 int main(int argc, char *argv[]) {
     if (argc != 3) {
-        cout << "Provide arguments as <tracker info file name> and <tracker_number>\n";
+        cout << "Provide arguments as <tracker info file name> and <tracker_number>\n"<<endl;
+        write_Log("Provide arguments as <tracker info file name> and <tracker_number>\n");
         return -1;
     }
 
@@ -425,6 +444,7 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
     cout << "Tracker socket created" << endl;
+    write_Log("Tracker Socket created"); 
     
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
@@ -435,6 +455,7 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
     cout << "Binding Completed" << endl;
+    write_Log("Binding Completed");
 
     if (listen(server_fd, 3) < 0) {
         cerr << "Listen failed" << endl;
@@ -452,6 +473,7 @@ int main(int argc, char *argv[]) {
             cout << "Error in accepting" << endl;
         }
         cout << "Connection Accepted" << endl;
+        write_Log("Connection Accepted");
 
         vector_ofThreads.push_back(thread(handle_client, client_socket));
     }
