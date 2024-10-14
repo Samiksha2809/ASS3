@@ -108,13 +108,12 @@ void uploadFile(vector<string> inpt, int client_socket, string client_uid) {
     
     char fileDetails[524288] = {0}; // Buffer to receive file details
     write(client_socket, "Uploading...", 12);
-    cout<<"uploading"<< endl;
+    cout<<("uploading")<< endl;
 
     // Read the file data from the client
     if (read(client_socket, fileDetails, sizeof(fileDetails)) > 0) {
-        cout << "reading" << endl;
         if (string(fileDetails) == "error") return; // Handle error response
-        cout << fileDetails <<endl;
+
         vector<string> fdet = splitString(string(fileDetails), "$$");
         // fdet = [filepath, peer address, file size, file hash, piecewise hash] 
         string filename = splitString(string(fdet[0]), "/").back(); // Extract the filename
@@ -125,7 +124,6 @@ void uploadFile(vector<string> inpt, int client_socket, string client_uid) {
             hashOfPieces += fdet[i];
             if (i != fdet.size() - 1) hashOfPieces += "$$";
         }
-        cout<<"hello";
         
         // Store the piecewise hash and update the seeder list
         piecewiseHash[filename] = hashOfPieces;
@@ -134,12 +132,10 @@ void uploadFile(vector<string> inpt, int client_socket, string client_uid) {
         // Update the file size map
         fileSize[filename] = fdet[2]; // Assuming fdet[2] contains the file size
 
-         cout<<"hello";
         write(client_socket, "Uploaded", 8); // Notify client of success
         cout << "uploaded";
     } else {
-        
-        write(client_socket, "Error: Failed to read file data", 32);
+        write(client_socket, "Error: Failed to read file data", 33);
     }
 }
 
